@@ -1,0 +1,53 @@
+# Install Vyper compiler v0.2.11 for compatibility with Betanet 1.X
+# pragma solidity ^0.2.11;
+
+# Import the ERC20 interface
+from vyper.interfaces import ERC20
+
+# Define the TimeVaultLock contract
+contract TimeVaultLock:
+    # Define the depositTime mapping
+    depositTime: public(HashMap[address, uint256])
+
+    # Define the ERC20 token instance
+    token: ERC20
+
+    # Initialize the contract with the ERC20 token address
+    def __init__(token_address: address):
+        self.token = ERC20(token_address)
+
+    # Deposit function to lock tokens
+    @payable
+    def deposit():
+        # Require exact 1 wei deposit
+        if msg.value != 1:
+            revert("Please deposit exactly 1 wei.")
+
+        # Check if the user already deposited from the same address
+        if self.depositTime[msg.sender] != 0:
+            revert("You have already made a deposit from this address.")
+
+        # Set depositTime to current block timestamp
+        self.depositTime[msg.sender] = block.timestamp
+
+    # Withdraw function to unlock tokens
+    def withdraw():
+        # Check if the user made a deposit
+        if self.depositTime[msg.sender] == 0:
+            revert("You have not made a deposit.")
+
+        # Calculate the locked time in seconds
+        lockedTime: uint256 = block.timestamp - self.depositTime[msg.sender]
+
+        # Calculate the amount of tokens to mint
+        tokensToMint: uint256 = lockedTime
+
+        # Set depositTime to 0 before transferring tokens
+        self.depositTime[msg.sender] = 0
+
+        # Transfer the deposited wei back to the user
+        if not msg.sender.send(1):
+            revert("Failed to transfer wei back to the user.")
+
+        # Mint tokens to the user
+        self.token.mint(msg.sender, tokensToMint)
